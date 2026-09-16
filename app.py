@@ -144,8 +144,8 @@ class SudlanganlikApp(tk.Tk):
     tk.Label(
         tab2_top,
         text=(
-            "Excel ustunlari: JSHSHIR, FISH, Tugilgan_sana, Moddalar, Izoh"
-            " bo'lishi kerak."
+            "Excel ustunlari quyidagicha bo'lishi kerak: JSHSHIR, FISH,"
+            " Tugilgan_sana, Moddalar, Izoh"
         ),
         bg="#F7FAFC",
         fg="#4A5568",
@@ -156,7 +156,7 @@ class SudlanganlikApp(tk.Tk):
 
     tk.Button(
         btn_box,
-        text=" Excel faylni yuklash (.xlsx)",
+        text="📁 Excel faylni yuklash (.xlsx)",
         font=("Arial", 10, "bold"),
         bg="#2B6CB0",
         fg="white",
@@ -164,14 +164,13 @@ class SudlanganlikApp(tk.Tk):
     ).pack(side=tk.LEFT, padx=5)
     tk.Button(
         btn_box,
-        text=" Bazani Excel qilib saqlash",
+        text="💾 Bazani Excel qilib saqlash",
         font=("Arial", 10, "bold"),
         bg="#4A5568",
         fg="white",
         command=self.export_excel,
     ).pack(side=tk.LEFT, padx=10)
 
-    # Qo'lda kiritish formasi
     form = tk.LabelFrame(
         tab2,
         text=" Yoki bittalab qo'lda kiritish ",
@@ -227,21 +226,21 @@ class SudlanganlikApp(tk.Tk):
     self.res_box.delete("1.0", tk.END)
     if r:
       txt = (
-          f" DIQQAT: NOMZOD SUDLANGANLIK BAZASIDA MAVJUD!\n\n"
-          f" JSHSHIR: {p}\n"
-          f" F.I.Sh.: {r[0]}\n"
-          f" Tug'ilgan sana: {r[1]}\n"
-          f" Sudlangan moddalari: {r[2]}\n"
-          f" Izoh / Tafsilotlar: {r[3]}\n"
-          f" Bazaga kiritilgan vaqt: {r[4]}\n"
+          f"⚠️ DIQQAT: NOMZOD SUDLANGANLIK BAZASIDA MAVJUD!\n\n"
+          f"📌 JSHSHIR: {p}\n"
+          f"👤 F.I.Sh.: {r[0]}\n"
+          f"📅 Tug'ilgan sana: {r[1]}\n"
+          f"⚖️ Sudlangan moddalari: {r[2]}\n"
+          f"📝 Izoh / Tafsilotlar: {r[3]}\n"
+          f"🕒 Bazaga kiritilgan vaqt: {r[4]}\n"
           f"---------------------------------------------------\n"
-          f" Kadastr sohasiga tavsiya etishda ushbu moddalarni inobatga oling!"
+          f"Kadastr sohasiga tavsiya etishda ushbu moddalarni inobatga oling!"
       )
       self.res_box.insert(tk.END, txt)
     else:
       self.res_box.insert(
           tk.END,
-          f" MA'LUMOT TOPILMADI.\n\nJSHSHIR: {p}\nUshbu fuqaro bazada"
+          f"✅ MA'LUMOT TOPILMADI.\n\nJSHSHIR: {p}\nUshbu fuqaro bazada"
           " mavjud emas (toza).",
       )
 
@@ -298,8 +297,14 @@ class SudlanganlikApp(tk.Tk):
         m = str(row.get("Moddalar", "")).strip()
         i = str(row.get("Izoh", "")).strip()
 
-        if p and f and p != "nan" and f != "nan":
-          # Takrorlangan JSHSHIR bo'lsa yangilab qo'yadi (INSERT OR REPLACE)
+        if (
+            p
+            and f
+            and p != "nan"
+            and f != "nan"
+            and p.lower() != "none"
+            and f.lower() != "none"
+        ):
           c.execute(
               """
                         INSERT OR REPLACE INTO records (pinfl, fullname, birth_date, articles, details)
