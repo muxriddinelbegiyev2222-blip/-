@@ -12,8 +12,8 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install PyInstaller
-      run: pip install pyinstaller
+    - name: Install Libraries
+      run: pip install pyinstaller pandas openpyxl
 
     - name: Build with PyInstaller
       run: pyinstaller --noconsole --onefile app.py
