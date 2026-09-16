@@ -1,4 +1,6 @@
+from datetime import datetime
 import os
+import re
 import sqlite3
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -39,12 +41,26 @@ def init_db():
 init_db()
 
 
+def validate_pinfl(pinfl_str):
+  # Faqat 14 ta raqam bo'lishi kerak
+  return bool(re.fullmatch(r"^\d{14}$", pinfl_str))
+
+
+def validate_date(date_str):
+  # Kun.Oy.Yil (masalan: 25.04.1990) formatini tekshirish
+  try:
+    datetime.strptime(date_str, "%d.%m.%Y")
+    return True
+  except ValueError:
+    return False
+
+
 class SudlanganlikApp(tk.Tk):
 
   def __init__(self):
     super().__init__()
     self.title("Ichki nazorat - Nomzodlarni tekshirish")
-    self.geometry("820x620")
+    self.geometry("820x640")
     self.resizable(False, False)
     self.show_login()
 
@@ -110,8 +126,8 @@ class SudlanganlikApp(tk.Tk):
     top.pack(fill=tk.X, padx=10, pady=10)
     tk.Label(
         top,
-        text="JSHSHIR (PINFL):",
-        font=("Arial", 12, "bold"),
+        text="JSHSHIR (PINFL - 14 xonali):",
+        font=("Arial", 11, "bold"),
         bg="#EDF2F7",
     ).pack(side=tk.LEFT, padx=5)
     self.q_pinfl = tk.Entry(top, font=("Arial", 13), width=20)
@@ -144,8 +160,8 @@ class SudlanganlikApp(tk.Tk):
     tk.Label(
         tab2_top,
         text=(
-            "Excel ustunlari quyidagicha bo'lishi kerak: JSHSHIR, FISH,"
-            " Tugilgan_sana, Moddalar, Izoh"
+            "Excel ustunlari: JSHSHIR (14 ta raqam), FISH, Tugilgan_sana"
+            " (kun.oy.yil), Moddalar, Izoh"
         ),
         bg="#F7FAFC",
         fg="#4A5568",
@@ -173,7 +189,7 @@ class SudlanganlikApp(tk.Tk):
 
     form = tk.LabelFrame(
         tab2,
-        text=" Yoki bittalab qo'lda kiritish ",
+        text=" Bittalab qat'iy norma bilan kiritish ",
         font=("Arial", 10, "bold"),
         bg="#F7FAFC",
         padx=15,
@@ -182,9 +198,9 @@ class SudlanganlikApp(tk.Tk):
     form.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
 
     lbls = [
-        ("JSHSHIR (PINFL - 14 xonali raqam):", "pinfl"),
+        ("JSHSHIR (PINFL - aniq 14 ta raqam):", "pinfl"),
         ("F.I.Sh. (Familiya Ism Sharif):", "fullname"),
-        ("Tug'ilgan sana (kun.oy.yil):", "birth_date"),
+        ("Tug'ilgan sana (kun.oy.yil - masalan: 15.04.1988):", "birth_date"),
         ("Sudlangan moddalari (masalan: 168, 210):", "articles"),
         ("Qo'shimcha izoh / Sud qarori tafsilotlari:", "details"),
     ]
@@ -213,6 +229,15 @@ class SudlanganlikApp(tk.Tk):
     if not p:
       messagebox.showwarning("Ogohlantirish", "JSHSHIR raqamini kiriting!")
       return
+
+    if not validate_pinfl(p):
+      messagebox.showerror(
+          "Xato JSHSHIR",
+          f"JSHSHIR aniq 14 ta raqamdan iborat bo'lishi shart!\nSiz kiritgan"
+          f" belgilar soni: {len(p)} ta.",
+      )
+      return
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
@@ -246,11 +271,33 @@ class SudlanganlikApp(tk.Tk):
 
   def save(self):
     vals = {k: v.get().strip() for k, v in self.inputs.items()}
-    if not vals["pinfl"] or not vals["fullname"]:
-      messagebox.showwarning(
-          "Xato", "JSHSHIR va F.I.Sh. kiritilishi majburiy!"
+
+    # 1. JSHSHIR qat'iy tekshiruvi
+    if not validate_pinfl(vals["pinfl"]):
+      messagebox.showerror(
+          "Qat'iy norma xatosi",
+          "JSHSHIR (PINFL) aynan 14 ta faqat raqamdan iborat bo'lishi shart!\n"
+          f"Siz kiritdingiz: {vals['pinfl']} ({len(vals['pinfl'])} ta belgi)",
       )
       return
+
+    # 2. F.I.Sh. tekshiruvi
+    if len(vals["fullname"]) < 5:
+      messagebox.showerror(
+          "Xatolik", "F.I.Sh. qatoriga to'liq ma'lumot kiriting!"
+      )
+      return
+
+    # 3. Tug'ilgan sana formati tekshiruvi (kun.oy.yil)
+    if not validate_date(vals["birth_date"]):
+      messagebox.showerror(
+          "Sana xatosi",
+          "Tug'ilgan sana formati noto'g'ri kiritildi!\n\n"
+          "Namuna: 15.04.1990 (kun.oy.yil ko'rinishida, nuqta bilan bo'lishi"
+          " shart).",
+      )
+      return
+
     try:
       conn = sqlite3.connect(DB_PATH)
       c = conn.cursor()
@@ -269,12 +316,14 @@ class SudlanganlikApp(tk.Tk):
       )
       conn.commit()
       conn.close()
-      messagebox.showinfo("Tayyor", "Ma'lumot bazaga kiritildi!")
+      messagebox.showinfo("Tayyor", "Ma'lumot qat'iy nazoratdan o'tib saqlandi!")
       for v in self.inputs.values():
         v.delete(0, tk.END)
     except sqlite3.IntegrityError:
       messagebox.showerror(
-          "Mavjud", "Ushbu JSHSHIR (PINFL) bazada allaqachon mavjud!"
+          "Mavjud",
+          f"Ushbu JSHSHIR ({vals['pinfl']}) bazada allaqachon mavjud! Qayta"
+          " kiritilmaydi.",
       )
 
   def import_excel(self):
@@ -290,6 +339,7 @@ class SudlanganlikApp(tk.Tk):
       c = conn.cursor()
 
       count = 0
+      rejected = 0
       for _, row in df.iterrows():
         p = str(row.get("JSHSHIR", "")).strip().replace(".0", "")
         f = str(row.get("FISH", "")).strip()
@@ -297,14 +347,8 @@ class SudlanganlikApp(tk.Tk):
         m = str(row.get("Moddalar", "")).strip()
         i = str(row.get("Izoh", "")).strip()
 
-        if (
-            p
-            and f
-            and p != "nan"
-            and f != "nan"
-            and p.lower() != "none"
-            and f.lower() != "none"
-        ):
+        # Exceldagi har bir qatorda JSHSHIR 14 ta raqam bo'lsa qabul qiladi
+        if validate_pinfl(p) and f and f.lower() != "nan":
           c.execute(
               """
                         INSERT OR REPLACE INTO records (pinfl, fullname, birth_date, articles, details)
@@ -313,11 +357,15 @@ class SudlanganlikApp(tk.Tk):
               (p, f, s, m, i),
           )
           count += 1
+        else:
+          rejected += 1
 
       conn.commit()
       conn.close()
       messagebox.showinfo(
-          "Muvaffaqiyatli", f"Exceldan {count} ta fuqaro bazaga yuklandi!"
+          "Yuklash yakunlandi",
+          f"Yuklandi: {count} ta fuqaro.\nNormaga to'g'ri kelmagan (JSHSHIRi xato)"
+          f" tashlab ketildi: {rejected} ta.",
       )
     except Exception as e:
       messagebox.showerror("Xatolik", f"Faylni o'qishda xatolik: {e}")
