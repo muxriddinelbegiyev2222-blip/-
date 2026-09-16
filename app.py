@@ -1,7 +1,8 @@
 import os
 import sqlite3
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
+import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "baza.db")
@@ -43,7 +44,7 @@ class SudlanganlikApp(tk.Tk):
   def __init__(self):
     super().__init__()
     self.title("Ichki nazorat - Nomzodlarni tekshirish")
-    self.geometry("800x600")
+    self.geometry("820x620")
     self.resizable(False, False)
     self.show_login()
 
@@ -102,9 +103,9 @@ class SudlanganlikApp(tk.Tk):
     tab1 = tk.Frame(nb, bg="#F7FAFC")
     tab2 = tk.Frame(nb, bg="#F7FAFC")
     nb.add(tab1, text="  Nomzodni tekshirish (Qidiruv)  ")
-    nb.add(tab2, text="  Yangi ma'lumot kiritish  ")
+    nb.add(tab2, text="  Ma'lumot kiritish va Excel  ")
 
-    # Qidiruv qismi
+    # --- 1-VAROQ: QIDIRUV ---
     top = tk.Frame(tab1, bg="#EDF2F7", pady=15, padx=15)
     top.pack(fill=tk.X, padx=10, pady=10)
     tk.Label(
@@ -129,9 +130,57 @@ class SudlanganlikApp(tk.Tk):
     )
     self.res_box.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
 
-    # Kiritish qismi
-    form = tk.Frame(tab2, bg="#F7FAFC", padx=30, pady=20)
-    form.pack(fill=tk.BOTH, expand=True)
+    # --- 2-VAROQ: EXCEL VA QO'LDA KIRITISH ---
+    tab2_top = tk.LabelFrame(
+        tab2,
+        text=" Excel orqali ommaviy yuklash ",
+        font=("Arial", 10, "bold"),
+        bg="#F7FAFC",
+        padx=15,
+        pady=10,
+    )
+    tab2_top.pack(fill=tk.X, padx=20, pady=10)
+
+    tk.Label(
+        tab2_top,
+        text=(
+            "Excel ustunlari: JSHSHIR, FISH, Tugilgan_sana, Moddalar, Izoh"
+            " bo'lishi kerak."
+        ),
+        bg="#F7FAFC",
+        fg="#4A5568",
+    ).pack(anchor=tk.W, pady=3)
+
+    btn_box = tk.Frame(tab2_top, bg="#F7FAFC")
+    btn_box.pack(anchor=tk.W, pady=5)
+
+    tk.Button(
+        btn_box,
+        text=" Excel faylni yuklash (.xlsx)",
+        font=("Arial", 10, "bold"),
+        bg="#2B6CB0",
+        fg="white",
+        command=self.import_excel,
+    ).pack(side=tk.LEFT, padx=5)
+    tk.Button(
+        btn_box,
+        text=" Bazani Excel qilib saqlash",
+        font=("Arial", 10, "bold"),
+        bg="#4A5568",
+        fg="white",
+        command=self.export_excel,
+    ).pack(side=tk.LEFT, padx=10)
+
+    # Qo'lda kiritish formasi
+    form = tk.LabelFrame(
+        tab2,
+        text=" Yoki bittalab qo'lda kiritish ",
+        font=("Arial", 10, "bold"),
+        bg="#F7FAFC",
+        padx=15,
+        pady=10,
+    )
+    form.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
 
     lbls = [
         ("JSHSHIR (PINFL - 14 xonali raqam):", "pinfl"),
@@ -143,22 +192,22 @@ class SudlanganlikApp(tk.Tk):
     self.inputs = {}
     for idx, (txt, key) in enumerate(lbls):
       tk.Label(
-          form, text=txt, font=("Arial", 10, "bold"), bg="#F7FAFC"
-      ).grid(row=idx, column=0, sticky=tk.W, pady=8)
-      ent = tk.Entry(form, font=("Arial", 11), width=45)
-      ent.grid(row=idx, column=1, pady=8, padx=10)
+          form, text=txt, font=("Arial", 9, "bold"), bg="#F7FAFC"
+      ).grid(row=idx, column=0, sticky=tk.W, pady=5)
+      ent = tk.Entry(form, font=("Arial", 10), width=45)
+      ent.grid(row=idx, column=1, pady=5, padx=10)
       self.inputs[key] = ent
 
     tk.Button(
         form,
         text="Bazaga saqlash",
-        font=("Arial", 11, "bold"),
+        font=("Arial", 10, "bold"),
         bg="#38A169",
         fg="white",
-        padx=20,
-        pady=6,
+        padx=15,
+        pady=4,
         command=self.save,
-    ).grid(row=len(lbls), column=1, sticky=tk.E, pady=15)
+    ).grid(row=len(lbls), column=1, sticky=tk.E, pady=10)
 
   def search(self):
     p = self.q_pinfl.get().strip()
@@ -228,6 +277,67 @@ class SudlanganlikApp(tk.Tk):
       messagebox.showerror(
           "Mavjud", "Ushbu JSHSHIR (PINFL) bazada allaqachon mavjud!"
       )
+
+  def import_excel(self):
+    file_path = filedialog.askopenfilename(
+        filetypes=[("Excel files", "*.xlsx *.xls")]
+    )
+    if not file_path:
+      return
+
+    try:
+      df = pd.read_excel(file_path, dtype={"JSHSHIR": str})
+      conn = sqlite3.connect(DB_PATH)
+      c = conn.cursor()
+
+      count = 0
+      for _, row in df.iterrows():
+        p = str(row.get("JSHSHIR", "")).strip().replace(".0", "")
+        f = str(row.get("FISH", "")).strip()
+        s = str(row.get("Tugilgan_sana", "")).strip()
+        m = str(row.get("Moddalar", "")).strip()
+        i = str(row.get("Izoh", "")).strip()
+
+        if p and f and p != "nan" and f != "nan":
+          # Takrorlangan JSHSHIR bo'lsa yangilab qo'yadi (INSERT OR REPLACE)
+          c.execute(
+              """
+                        INSERT OR REPLACE INTO records (pinfl, fullname, birth_date, articles, details)
+                        VALUES (?, ?, ?, ?, ?)
+                    """,
+              (p, f, s, m, i),
+          )
+          count += 1
+
+      conn.commit()
+      conn.close()
+      messagebox.showinfo(
+          "Muvaffaqiyatli", f"Exceldan {count} ta fuqaro bazaga yuklandi!"
+      )
+    except Exception as e:
+      messagebox.showerror("Xatolik", f"Faylni o'qishda xatolik: {e}")
+
+  def export_excel(self):
+    save_path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")]
+    )
+    if not save_path:
+      return
+    try:
+      conn = sqlite3.connect(DB_PATH)
+      df = pd.read_sql_query(
+          "SELECT pinfl as JSHSHIR, fullname as FISH, birth_date as"
+          " Tugilgan_sana, articles as Moddalar, details as Izoh, created_at as"
+          " Kiritilgan_vaqt FROM records",
+          conn,
+      )
+      conn.close()
+      df.to_excel(save_path, index=False)
+      messagebox.showinfo(
+          "Tayyor", "Baza to'liq Excel fayl sifatida saqlandi!"
+      )
+    except Exception as e:
+      messagebox.showerror("Xatolik", f"Eksportda xatolik: {e}")
 
 
 if __name__ == "__main__":
